@@ -1,0 +1,3 @@
+/home/dhu/unitree_dog/faceLightSDK_Nano/build/CMakeFiles/faceLightClient.dir
+/home/dhu/unitree_dog/faceLightSDK_Nano/build/CMakeFiles/edit_cache.dir
+/home/dhu/unitree_dog/faceLightSDK_Nano/build/CMakeFiles/rebuild_cache.dir
