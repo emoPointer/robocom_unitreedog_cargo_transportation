@@ -7,11 +7,13 @@
 #include <UnitreeCameraSDK.hpp>
 #include <unistd.h>
 
-UnitreeCamera cam("stereo_camera_config.yaml"); 
 int rows=1856;
 int cols=800;
+int deviceNode = 0; // default 0 -> /dev/video0
 cv::Size frameSize(rows,cols); 
 int fps = 30;
+UnitreeCamera cam(deviceNode);
+
 bool producer(Factory<TaskData> &factory,std::chrono::_V2::steady_clock::time_point time_start){
     if(!cam.isOpened()){
         exit(EXIT_FAILURE);
