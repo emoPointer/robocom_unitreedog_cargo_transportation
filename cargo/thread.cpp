@@ -50,7 +50,8 @@ bool consumer(Factory<TaskData> &task_factory,Factory<VisionData> &transmit_fact
         {
             array[i] = image.ptr<unsigned char>(i);
         }
-        run(array);
+        // run(array);
+        imshow("1",image);
         delete[] array;
     }
     

@@ -6,9 +6,23 @@
 
 #define AT                  AT_IMAGE
 #define AT_CLIP(img, x, y)  AT_IMAGE((img), clip((x), 0, (img)->width-1), clip((y), 0, (img)->height-1));
-
+#ifndef PI
+  #define PI               3.14159265358979f
+#endif
 extern int clip(int x, int low, int up);
-
+// image_t img_raw;
+float begin_x = 32;
+float begin_y = 500;
+float thres = 140;
+float block_size = 7;
+float clip_value = 2;
+extern float mapx[240][376];
+extern float mapy[240][376];
+float line_blur_kernel = 7;
+float sample_dist = 0.02;
+float pixel_per_meter = 102;
+float angle_dist = 0.2;
+float aim_distance = 0.58;
 void clone_image(image_t *img0, image_t *img1) {
     assert(img0 && img0->data);
     assert(img1 && img1->data);
@@ -233,18 +247,18 @@ void remap(image_t *img0, image_t *img1, fimage_t *mapx, fimage_t *mapy) {
  * 3   1
  *   2
  */
-// AT_DTCM_SECTION_ALIGN_INIT(const int dir_front[4][2], 8) = {{0,  -1},
-//                                                             {1,  0},
-//                                                             {0,  1},
-//                                                             {-1, 0}};
-// AT_DTCM_SECTION_ALIGN_INIT(const int dir_frontleft[4][2], 8) = {{-1, -1},
-//                                                                 {1,  -1},
-//                                                                 {1,  1},
-//                                                                 {-1, 1}};
-// AT_DTCM_SECTION_ALIGN_INIT(const int dir_frontright[4][2], 8) = {{1,  -1},
-//                                                                  {1,  1},
-//                                                                  {-1, 1},
-//                                                                  {-1, -1}};
+const int dir_front[4][2] = {{0,  -1},
+                            {1,  0},
+                            {0,  1},
+                            {-1, 0}};
+const int dir_frontleft[4][2] = {{-1, -1},
+                                {1,  -1},
+                                {1,  1},
+                                {-1, 1}};
+const int dir_frontright[4][2] = {{1,  -1},
+                                {1,  1},
+                                {-1, 1},
+                                {-1, -1}};
 
 // 左手迷宫巡线
 void findline_lefthand_adaptive(image_t *img, int block_size, int clip_value, int x, int y, int pts[][2], int *num) {
@@ -634,7 +648,7 @@ void draw_o(image_t *img, int x, int y, int radius, uint8_t value) {
 }
 
 
-void process_image() {
+void process_image(image_t img_raw) {
     // 原图找左右边线
     int x1 = img_raw.width / 2 - begin_x, y1 = begin_y;
     ipts0_num = sizeof(ipts0) / sizeof(ipts0[0]);
@@ -756,25 +770,57 @@ void find_corners() {
         }
     }
     // L点二次检查，车库模式不检查, 依据L角点距离及角点后张开特性
-    if (garage_type == GARAGE_NONE) {
-        if (Lpt0_found && Lpt1_found) {
-            float dx = rpts0s[Lpt0_rpts0s_id][0] - rpts1s[Lpt1_rpts1s_id][0];
-            float dy = rpts0s[Lpt0_rpts0s_id][1] - rpts1s[Lpt1_rpts1s_id][1];
-            float dn = sqrtf(dx * dx + dy * dy);
-            if (fabs(dn - 0.45 * pixel_per_meter) < 0.15 * pixel_per_meter) {
-                float dwx = rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][0] -
-                            rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][0];
-                float dwy = rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][1] -
-                            rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][1];
-                float dwn = sqrtf(dwx * dwx + dwy * dwy);
-                if (!(dwn > 0.7 * pixel_per_meter &&
-                      rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][0] < rpts0s[Lpt0_rpts0s_id][0] &&
-                      rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][0] > rpts1s[Lpt1_rpts1s_id][0])) {
-                    Lpt0_found = Lpt1_found = false;
-                }
-            } else {
-                Lpt0_found = Lpt1_found = false;
-            }
+    // if (garage_type == GARAGE_NONE) {
+    //     if (Lpt0_found && Lpt1_found) {
+    //         float dx = rpts0s[Lpt0_rpts0s_id][0] - rpts1s[Lpt1_rpts1s_id][0];
+    //         float dy = rpts0s[Lpt0_rpts0s_id][1] - rpts1s[Lpt1_rpts1s_id][1];
+    //         float dn = sqrtf(dx * dx + dy * dy);
+    //         if (fabs(dn - 0.45 * pixel_per_meter) < 0.15 * pixel_per_meter) {
+    //             float dwx = rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][0] -
+    //                         rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][0];
+    //             float dwy = rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][1] -
+    //                         rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][1];
+    //             float dwn = sqrtf(dwx * dwx + dwy * dwy);
+    //             if (!(dwn > 0.7 * pixel_per_meter &&
+    //                   rpts0s[clip(Lpt0_rpts0s_id + 50, 0, rpts0s_num - 1)][0] < rpts0s[Lpt0_rpts0s_id][0] &&
+    //                   rpts1s[clip(Lpt1_rpts1s_id + 50, 0, rpts1s_num - 1)][0] > rpts1s[Lpt1_rpts1s_id][0])) {
+    //                 Lpt0_found = Lpt1_found = false;
+    //             }
+    //         } else {
+    //             Lpt0_found = Lpt1_found = false;
+    //         }
+    //     }
+    // }
+}
+
+void run(image_t img){
+    process_image(img);
+    find_corners();
+    if (rpts0s_num < rpts1s_num / 2 && rpts0s_num < 60) {
+            track_type = TRACK_RIGHT;
+        } else if (rpts1s_num < rpts0s_num / 2 && rpts1s_num < 60) {
+            track_type = TRACK_LEFT;
+        } else if (rpts0s_num < 20 && rpts1s_num > rpts0s_num) {
+            track_type = TRACK_RIGHT;
+        } else if (rpts1s_num < 20 && rpts0s_num > rpts1s_num) {
+            track_type = TRACK_LEFT;
         }
-    }
+    // // 总钻风检查Apriltag(找赛道上的黑斑)
+    //     if (!enable_adc && garage_type == GARAGE_NONE && get_total_encoder() - openart.aprilencoder > ENCODER_PER_METER)
+    //         check_apriltag();
+
+    //     // 分别检查十字 三叉 和圆环, 十字优先级最高
+    //     if (garage_type == GARAGE_NONE &&
+    //         apriltag_type != APRILTAG_FOUND && apriltag_type != APRILTAG_LEAVE)
+    //         check_cross();
+    //     if (garage_type == GARAGE_NONE && cross_type == CROSS_NONE && circle_type == CIRCLE_NONE &&
+    //         apriltag_type != APRILTAG_FOUND && apriltag_type != APRILTAG_LEAVE)
+    //         check_yroad();
+    //     if (garage_type == GARAGE_NONE && cross_type == CROSS_NONE && yroad_type == YROAD_NONE &&
+    //         apriltag_type != APRILTAG_FOUND && apriltag_type != APRILTAG_LEAVE)
+    //         check_circle();
+    //     if (cross_type != CROSS_NONE) {
+    //         circle_type = CIRCLE_NONE;
+    //         yroad_type = YROAD_NONE;
+    //     }
 }
